@@ -50,6 +50,19 @@ can be used to check for reproducibility (see below for instructions).
   below for knitting instructions)
 
 
+## Dependencies
+
+Those analyses depends on [RStudio](https://www.rstudio.com/). You eed
+to install it.
+
+You also need the R packages `car` and `jsonlite` dependencies.
+Install them using your system package distribution, or from a R
+prompt:
+
+    install.packages("car")
+    install.packages("jsonlite")
+
+
 ## Instructions to reproduce analyses reported on in the paper
 
 Some readers may want to check our materials for reproducibility. To

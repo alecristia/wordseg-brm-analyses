@@ -1,18 +1,26 @@
 #!/bin/bash
 #create and analyzed concatenated versions
 
+
+############ PATH TO ADAPT TO YOUR SYSTEM
+
 # where to read the tags files
 input_dir="/scratch2/acristia/wsexp/Providence"
 
-# the childs to consider in this experiment
-childs="eth lil nai vio wil"
-
 # where to write results (erase any content if the directory already exist)
 output_dir="/scratch2/mbernard/experiments/wsexp/results_do_concat_prov"
-rm -rf $output_dir
 
 # wordseg tool to launch segmentation pipelines on the cluster
 wordseg_slurm="/shared/apps/wordseg/tools/wordseg-slurm.sh"
+
+############ END OF SCRIPT ADAPTATION
+
+
+# where to write results (erase any content if the directory already exist)
+rm -rf $output_dir
+
+# the childs to consider in this experiment
+childs="eth lil nai vio wil"
 
 # the token separators in the tags files
 separator="-p' ' -s';esyll' -w';eword'"
@@ -72,6 +80,7 @@ do
     done
     echo " done"
 done
+
 
 # load the wordseg python environment
 module load anaconda/3

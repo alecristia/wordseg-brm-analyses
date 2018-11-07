@@ -1,15 +1,22 @@
 #!/bin/bash
 #segment independent transcripts
 
+############ PATH TO ADAPT TO YOUR SYSTEM
+
 # where to read the tags files
 input_dir="/scratch2/acristia/wsexp/Providence"
 
 # where to write results (erase any content if the directory already exist)
 output_dir="/scratch2/mbernard/experiments/wsexp/results_do_prov"
-rm -rf $output_dir
 
 # wordseg tool to launch segmentation pipelines on the cluster
 wordseg_slurm="/shared/apps/wordseg/tools/wordseg-slurm.sh"
+
+############ END OF SCRIPT ADAPTATION
+
+
+# where to write results (erase any content if the directory already exist)
+rm -rf $output_dir
 
 # the token separators in the tags files
 separator="-p' ' -s';esyll' -w';eword'"
@@ -51,6 +58,7 @@ do
     echo " done"
 
     # # for testing, process only some tags
+
     # [ $counter -eq 4 ] && break
 done
 
