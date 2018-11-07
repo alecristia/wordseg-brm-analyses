@@ -1,0 +1,310 @@
+---
+title: "Main Analyses for _WordSeg: Standardizing unsupervised word form segmentation from text_"
+author: "Alejandrina Cristia"
+date: "2018/11/02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+RECALC=TRUE
+resfol="results_do_prov/"
+resfol_conc="results_do_concat_prov/"
+
+
+report_algos=c("ag","baseline-00", "baseline-05", "baseline-10", "dibs", "puddle", "tpabs", "tprel")
+mycols=c("darkgreen","darkgray","gray","lightgray","orange","purple","lightblue","darkblue") 
+names(mycols)<-report_algos
+```
+
+## Read in data
+
+First we read in the performance results. Remember that there will be some warnings because boundary scores are sometimes undefined. (And that is as it should be.) Next we read the corpus characteristics descriptions. Finally, we do some cleaning and writing out.
+
+```{r compose-results,eval=RECALC}
+library(jsonlite)
+results=dir(resfol)
+allres=NULL
+allstats=NULL
+allcombo=NULL
+for(thisres in results){
+  test=scan(paste0(resfol,thisres,"/eval.txt"),what="char")
+  if(length(test)>0){
+    read.table(paste0(resfol,thisres,"/eval.txt"))->y
+    bits=strsplit(thisres,"-")
+    clean_name=bits[[1]][1]
+    unit=bits[[1]][2]
+    if(length(bits[[1]])==3) algo=bits[[1]][3] else algo=paste0(bits[[1]][3],"-",bits[[1]][4])
+    allres=rbind(allres,cbind(t(as.numeric(as.character(y[,-1]))),thisres,clean_name,algo,unit))
+  } else print(paste0(resfol,thisres,"eval.txt is empty"))
+  
+  
+  #turn to stats
+  fromJSON(paste0(resfol,thisres,"/stats.json"), flatten=TRUE)->x
+  nphone_tokens=x$phones$tokens
+  nphone_types=x$phones$types
+  nsyllable_tokens=x$syllables$tokens
+  nsyllable_types=x$syllables$types
+  nwords_tokens=x$words$tokens
+  nwords_types=x$words$types
+  nword_hapax=x$words$hapaxes
+  mattr=x$corpus$mattr
+  entropy=x$corpus$entropy
+  nutts_single_word=x$corpus$nutts_single_word
+  nutts=x$corpus$nutts
+  allstats=rbind(allstats,cbind(thisres,clean_name,nphone_tokens,nphone_types,
+                                        nsyllable_tokens,nsyllable_types,
+                                nwords_tokens,nwords_types,
+                                nword_hapax,mattr,
+                                entropy,
+                                nutts_single_word,nutts))
+  
+  #make combination
+    allcombo=rbind(allcombo,cbind(t(as.numeric(as.character(y[,-1]))),thisres,clean_name,algo,unit,nphone_tokens,nphone_types,
+                                        nsyllable_tokens,nsyllable_types,
+                                nwords_tokens,nwords_types,
+                                nword_hapax,mattr,
+                                entropy,
+                                nutts_single_word,nutts))
+
+}
+
+#wrap up and write out RES
+colnames(allres)[1:dim(y)[1]]<-c(as.character(y[,1]))
+allres=data.frame(allres)
+allres$child=substr(allres$thisres,1,3)
+write.table(allres,"derived/results.txt",quote=F,sep="\t")
+
+#wrap up and write out STATS
+write.table(allstats,"derived/stats.txt",quote=F,sep="\t")
+read.table("derived/stats.txt",header=T)->allstats #this inelegant write-out-read-in so that all cols are numeric
+#calculate some proportions to capture tendency to have single-word utterances and to have words that are not repeated controlling to a certain extent for corpus size
+allstats$prop_swu=allstats$nutts_single_word/allstats$nutts
+allstats$prop_hap=allstats$nword_hapax/allstats$nwords_types
+allstats$avg_ph_w=allstats$nphone_tokens/allstats$nwords_tokens
+allstats$avg_syl_w=allstats$nsyllable_tokens/allstats$nwords_tokens
+allstats$avg_w_utt=allstats$nwords_tokens/allstats$nutts
+allstats$child=substr(allstats$thisres,1,3)
+write.table(allstats,"derived/stats.txt",quote=F,sep="\t")
+
+colnames(allcombo)[1:dim(y)[1]]<-c(as.character(y[,1]))
+allcombo=data.frame(allcombo)
+allcombo$child=substr(allcombo$thisres,1,3)
+write.table(allcombo,"derived/all.txt",quote=F,sep="\t")
+```
+
+
+## Preliminary descriptions
+
+### Stats
+```{r getstat-latex}
+read.table("derived/stats.txt",header=T)->allstats
+colSums(allstats[,grep("tokens",colnames(allstats))])
+sum(allstats$nutts)
+
+tab=round(cbind(apply(allstats[,c(3:18)],2,mean),
+apply(allstats[,c(3:18)],2,sd)),3)
+colnames(tab)<-c("Mean","SD")
+rownames(tab)<-gsub("_"," ",rownames(tab))
+rownames(tab)<-gsub("^n","N ",rownames(tab))
+write.table(tab,"derived/stats_tab.txt",eol="\\\\\n",sep=" & ",quote=F)
+```
+
+
+### Results
+
+```{r read-in-final}
+read.table("derived/all.txt",header=T)->res
+
+summary(res)
+dim(res)
+```
+
+
+
+## Effects of unit and algo
+
+Fit a regression with these two basic predictors.
+
+```{r basic-lm}
+minfit=lm(res$token_fscore~res$algo*res$unit + (1/res$clean_name))
+summary(minfit)
+library(car)
+Anova(minfit)
+
+```
+
+Notice we explain a whopping >90% of the variance with just these two variables and their interaction. The stats simply confirm what is visually obvious below. In the following graph, we show the effects of unit and algorithm.
+
+```{r fig-ua}
+mypos=jitter(as.numeric(res$algo)+ifelse(res$unit=="phone",-.25,+.25))
+pdf("derived/ua.pdf",height=6,width=12)
+plot(token_fscore~mypos,data=res,pch=ifelse(res$unit=="phone",20,3),
+     xlab="Algorithm and unit",ylab="Token F-score",xaxt="n",col = mycols[as.numeric(as.factor(res$algo))]) # 
+axis(side=1,at=1:length(levels(res$algo)),gsub("aseline","",levels(res$algo)),tick=F,line=1)
+axis(side=1,at=c(1:length(levels(res$algo))-.25,1:length(levels(res$algo))+.25),
+     c(rep("P",length(levels(res$algo))),rep("S",length(levels(res$algo)))),tick=F,line=-.25)
+dev.off()
+```
+
+In short, we observe clear effects of basic unit (+ for syllables, circles for phones) and algorithm, and an important interaction between the two.
+
+
+
+## Further exploration of the role of corpus length
+
+First, we compile the dataset, if needed.
+
+```{r compose-results-concat, eval=RECALC}
+
+### NOTE!!! THIS CODE IS IDENTICAL TO compose-results CHUNK, SO IF YOU MAKE A CHANGE THERE, JUST COPY PASTE WHOLE CHUNK HERE AND 
+# 1. REPLACE THE NAME OF THE FOLDER resfol --> resfol_conc
+# 2. PREPEND length_ TO OUTPUTTED TABLES
+# 3. (and this is the one you need to pay most attention to) adapt the extraction of clean_name to algo as needed
+
+library(jsonlite)
+results=dir(resfol_conc)
+allres=NULL
+allstats=NULL
+allcombo=NULL
+for(thisres in results){
+  test=scan(paste0(resfol_conc,thisres,"/eval.txt"),what="char")
+  if(length(test)>0){
+    read.table(paste0(resfol_conc,thisres,"/eval.txt"))->y
+    bits=strsplit(thisres,"-")
+    clean_name=paste0(bits[[1]][1],"_",bits[[1]][2])
+    unit=bits[[1]][3]
+    if(length(bits[[1]])==4) algo=bits[[1]][4] else algo=paste0(bits[[1]][4],"-",bits[[1]][5])
+    allres=rbind(allres,cbind(t(as.numeric(as.character(y[,-1]))),thisres,clean_name,algo,unit))
+  } else print(paste0(resfol_conc,thisres,"eval.txt is empty"))
+  
+  
+  #turn to stats
+  fromJSON(paste0(resfol_conc,thisres,"/stats.json"), flatten=TRUE)->x
+  nphone_tokens=x$phones$tokens
+  nphone_types=x$phones$types
+  nsyllable_tokens=x$syllables$tokens
+  nsyllable_types=x$syllables$types
+  nwords_tokens=x$words$tokens
+  nwords_types=x$words$types
+  nword_hapax=x$words$hapaxes
+  mattr=x$corpus$mattr
+  entropy=x$corpus$entropy
+  nutts_single_word=x$corpus$nutts_single_word
+  nutts=x$corpus$nutts
+  allstats=rbind(allstats,cbind(thisres,clean_name,nphone_tokens,nphone_types,
+                                        nsyllable_tokens,nsyllable_types,
+                                nwords_tokens,nwords_types,
+                                nword_hapax,mattr,
+                                entropy,
+                                nutts_single_word,nutts))
+  #make combination
+  allcombo=rbind(allcombo,cbind(t(as.numeric(as.character(y[,-1]))),thisres,clean_name,algo,unit,nphone_tokens,nphone_types,
+                                        nsyllable_tokens,nsyllable_types,
+                                nwords_tokens,nwords_types,
+                                nword_hapax,mattr,
+                                entropy,
+                                nutts_single_word,nutts))
+}
+
+#wrap up and write out RES
+colnames(allres)[1:dim(y)[1]]<-c(as.character(y[,1]))
+allres=data.frame(allres)
+allres$child=substr(allres$thisres,1,3)
+write.table(allres,"derived/length_results.txt",quote=F,sep="\t")
+
+#wrap up and write out STATS
+write.table(allstats,"derived/length_stats.txt",quote=F,sep="\t")
+read.table("derived/length_stats.txt",header=T)->allstats #this inelegant write-out-read-in so that all cols are numeric
+#calculate some proportions to capture tendency to have single-word utterances and to have words that are not repeated controlling to a certain extent for corpus size
+allstats$prop_swu=allstats$nutts_single_word/allstats$nutts
+allstats$prop_hap=allstats$nword_hapax/allstats$nwords_types
+allstats$avg_ph_w=allstats$nphone_tokens/allstats$nwords_tokens
+allstats$avg_syl_w=allstats$nsyllable_tokens/allstats$nwords_tokens
+allstats$avg_w_utt=allstats$nwords_tokens/allstats$nutts
+allstats$child=substr(allstats$thisres,1,3)
+write.table(allstats,"derived/length_stats.txt",quote=F,sep="\t")
+
+colnames(allcombo)[1:dim(y)[1]]<-c(as.character(y[,1]))
+allcombo=data.frame(allcombo)
+allcombo$child=substr(allcombo$thisres,1,3)
+write.table(allcombo,"derived/length_all.txt",quote=F,sep="\t")
+```
+
+Next, read in the dataset, check that all conditions have the same number of transcripts, and there is no missing data (other than the boundary scores that can be NA).
+
+```{r length-effect_nai}
+read.table("derived/length_all.txt",header=T)->lng
+lng$iteration=as.numeric(as.character(gsub(".*_","",lng$clean_name)))
+#table(lng$child,lng$unit,lng$algo)
+
+#summary(lng)
+```
+
+Generate graph with only one child for the visualization in the main paper.
+
+```{r showfx-lng}
+
+subset(lng,child=="nai")->nai
+
+pdf("derived/multi_nai.pdf")
+plot(token_fscore~nutts,data=nai,type="n",xlab="N word tokens",ylab="Token F-score")
+for(thisscore in 0:10) lines(c(0,10^6),c(thisscore/10,thisscore/10),lty=3,col="gray")
+for(thisalgo in 1:length(levels(nai$algo))) {
+  points(token_fscore~nutts,data=nai,subset=c(algo==levels(nai$algo)[thisalgo]),
+         pch=ifelse(nai$unit[nai$algo==levels(nai$algo)[thisalgo]]=="phone",20,8),
+         col=mycols[thisalgo],cex=ifelse(nai$unit[nai$algo==levels(nai$algo)[thisalgo]]=="phone",1.5,2) )
+}
+
+nai$kind=paste(nai$thisconc,nai$unit,nai$algo)
+for(i in 2:max(nai$iteration) ){
+  for(thiskind in levels(as.factor(nai$kind))){
+    origin=nai[nai$kind==thiskind & nai$iteration==(i-1),c("nutts","token_fscore")]
+    end=nai[nai$kind==thiskind & nai$iteration==(i),c("nutts","token_fscore")]
+    lines(c(origin$nutts,end$nutts),c(origin$token_fscore,end$token_fscore),lwd=2,
+          lty=1, #ifelse(strsplit(thiskind," ")[[1]][2]=="phone",1,3), #this line is not working
+          col=mycols[names(mycols)==strsplit(thiskind," ")[[1]][3]])
+  }
+}
+
+#add legend
+top=.53
+mid=.50
+bottom=.47
+
+polygon(c(18000,4000,4000,18000),c(top+.01,top+.01,bottom-.01,bottom-.01),border="white",bg="white",col="white")
+
+points(5000,mean(c(top,mid)),pch=20)
+text(5010,mean(c(top,mid)),"phone",pos=4)
+points(5000,mean(c(bottom,mid)),pch=8)
+text(5010,mean(c(bottom,mid)),"syllable",pos=4)
+
+text(c(16000,10000,10000,10000,13000,16000,   13000,13000),
+     c(top     ,top,mid,bottom,     top,  mid,    mid,bottom),names(mycols),col=mycols)
+
+dev.off()
+```
+
+### Investigate length with independent transcripts
+```{r doregs}
+ind=NULL
+for(thisc in levels(lng$child)){
+  subset(lng, child==thisc)-> xx
+  ind=rbind(ind,subset(xx, iteration==max(xx$iteration)))
+}
+
+  simple=lm(token_fscore~algo*unit + (1/child) ,data=ind) 
+  print(summary(simple)$adj.r.squared)
+  print(summary(simple))
+
+for(thispred in c("nwords_tokens")){ #"nutts","nphone_tokens",
+  myfit=lm(token_fscore~algo*unit*ind[,thispred] + (1/child)  ,data=ind) 
+  print(thispred)
+  print(summary(myfit)$adj.r.squared)
+  print(anova(simple,myfit))
+  print(summary(myfit))
+}
+
+```
+
+

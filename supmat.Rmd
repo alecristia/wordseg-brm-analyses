@@ -1,0 +1,216 @@
+---
+title: "Supplementary materials for _WordSeg: Standardizing unsupervised word form segmentation from text_"
+author: "alejandrina cristia"
+date: "10/31/2018"
+output: 
+  pdf_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+
+report_algos=c("ag","baseline-00", "baseline-05", "baseline-10", "dibs", "puddle", "tpabs", "tprel")
+mycols=c("darkgreen","darkgray","gray","lightgray","orange","purple","lightblue","darkblue") 
+names(mycols)<-report_algos
+```
+
+
+```{r read-in-final}
+read.table("derived/all.txt",header=T)->res
+
+
+summary(res)
+dim(res)
+```
+
+
+## Correlations across token, type, and boundary F-scores
+
+The inscriptions in the diagonal refer to the boundary axes (e.g., the second cell in the top row shows point as a function of type in the x-axis and token in the y-axis, whereas the inverse is true for the first cell in the middle row). Each point is the performance of a segmentation experiment on one of the 74 transcripts, using either phones (circles) or syllables (crosses) in combination with one of the 8 algorithms (color - please see Figure 4 for algorithm-color mapping).
+
+
+
+
+Checking for whether different outcomes are independent.
+
+```{r outcome-measures}
+subselcol=c("token_fscore","type_fscore","boundary_all_fscore")
+sublabs=gsub("_","\n",subselcol)
+sublabs=gsub("fs","F-s",sublabs)
+pchs=c(3,15:18,0,7)
+
+
+pairs(res[,subselcol],col =  mycols[as.numeric(as.factor(res$algo))],xlim=range(res[,subselcol]),ylim=range(res[,subselcol]), pch=ifelse(res$unit=="phone",20,3),labels=sublabs)
+
+cor(res[,subselcol],method="p")
+cor(res[,subselcol],method="s")
+
+
+
+```
+
+## Deep dive: F-scores, precision, and recall
+
+Correlations across across F-scores, precision, and recall within token, type, and boundary scores.
+
+```{r,results="asis"}
+for(thisout in c("token_","type_","boundary_")){
+  subselcol=colnames(res)[grep(thisout,colnames(res))]
+  subselcol=subselcol[grep("noedge",subselcol,invert=T)]
+  sublabs=gsub("_","\n",subselcol)
+  sublabs=gsub("fs","F-s",sublabs)
+  pairs(res[,subselcol],col =  mycols[as.numeric(as.factor(res$algo))],xlim=range(res[,subselcol]),ylim=range(res[,subselcol]), pch=ifelse(res$unit=="phone",20,3),labels=sublabs)
+  
+ cat("\n\n\n")
+  print("Spearman correlations")
+  print(kable(round(cor(res[,subselcol],method="s"),3)))
+ cat("\n\n\\pagebreak\n")
+
+}
+
+temp<-res
+
+colnames(temp)<-gsub("token","to",colnames(temp))
+colnames(temp)<-gsub("type","ty",colnames(temp))
+colnames(temp)<-gsub("boundary","b",colnames(temp))
+colnames(temp)<-gsub("all","a",colnames(temp))
+colnames(temp)<-gsub("noedge","ne",colnames(temp))
+colnames(temp)<-gsub("precision","p",colnames(temp))
+colnames(temp)<-gsub("reca","r",colnames(temp))
+colnames(temp)<-gsub("fscore","f",colnames(temp))
+xx=colnames(temp)
+selcol<-c(xx[grep("to_",xx)],xx[grep("ty_",xx)],xx[grep("b_a",xx)])
+labs=gsub("_","\n",selcol)
+
+pairs(temp[,selcol],col =  mycols[as.numeric(as.factor(temp$algo))], pch=ifelse(temp$unit=="phone",20,3),labels=labs)
+for(i in 1:length(levels(temp$algo))){
+  thisalgo=levels(temp$algo)[i]
+  pairs(temp[res$algo==thisalgo,selcol],col = mycols[i], pch=ifelse(res$unit[temp$algo==thisalgo]=="phone",20,3),labels=labs,main=thisalgo,
+      xlim=range(temp[,selcol]),ylim=range(temp[,selcol]))
+ cat("\n\n\n")
+  print("Spearman correlations")
+  print(kable(round(cor(temp[temp$algo==thisalgo,selcol],method="s"),3)))
+ cat("\n\n\\pagebreak\n")
+
+}
+
+
+```
+
+Everything is correlated. So using token F-score only as outcome for all the following analyses.
+
+
+
+## Corpus size effects
+
+Corpus size can be measured in number of phones, words, utterances. To decide which of the three we'll use in further analyses, we inspect the proportion of variance explained by each.
+
+```{r length-effect}
+for(thispred in c("nphone_tokens","nsyllable_tokens","nwords_tokens","nutts")){
+  myfit=lm(res$token_fscore~res$algo*res$unit*res[,thispred] + (1/res$clean_name))
+  print(thispred)
+  print(summary(myfit)$adj.r.squared)
+}
+
+```
+
+The best is number of utterances.
+In the following analyses, we investigate the association between performance and corpus length for all algorithms.
+
+
+```{r lng-regs}
+
+tab=NULL
+for(thisalgo in 1:length(levels(res$algo))) { 
+  phonelm=summary(lm(token_fscore~nutts + (1/clean_name),data=res,subset=c(res$algo==levels(res$algo)[thisalgo] & res$unit=="phone")))
+  syllm=summary(lm(token_fscore~nutts + (1/clean_name),data=res,subset=c(res$algo==levels(res$algo)[thisalgo] & res$unit!="phone")))
+    print(phonelm)
+    print(syllm)
+    tab=rbind(tab,rbind(
+      cbind(levels(res$algo)[thisalgo],"phone",phonelm$adj.r.squared,phonelm$coefficients[2],phonelm$coefficients[8]),
+      cbind(levels(res$algo)[thisalgo],"syll",syllm$adj.r.squared,syllm$coefficients[2],syllm$coefficients[8])
+      ))
+}
+colnames(tab)<-c("Algo","Unit","R2","B","p")
+tab[,3]=round(as.numeric(as.character(tab[,3]))*100,1)
+tab[,4]=round(as.numeric(as.character(tab[,4]))*10^4,3)
+tab[,5]=round(as.numeric(as.character(tab[,5])),3)
+tab[,1]=gsub("_b","",tab[,1])
+tab[,5]<-ifelse(tab[,5]<0.05,paste0(tab[,5],"*"),tab[,5])
+tab[tab[,5]=="0*",5]<-"<.001*"
+write.table(tab,"derived/lng-ind-tab.txt",eol="\\\\\n",sep=" & ",quote=F,row.names = F)
+```
+
+
+Next we repeat the analyses, but this time on the concatenated transcripts.
+
+```{r size-reg}
+
+read.table("derived/length_all.txt",header=T)->lng
+lng$iteration=as.numeric(as.character(gsub(".*_","",lng$clean_name)))
+
+
+ind=NULL
+for(thisc in levels(lng$child)){
+  subset(lng, child==thisc)-> xx
+  ind=rbind(ind,subset(xx, iteration==max(xx$iteration)))
+}
+
+minfit=lm(token_fscore~algo*unit ,data=ind) #
+summary(minfit)
+
+
+for(thispred in c("nwords_tokens","nphone_tokens","nutts")){
+  myfit=lm(token_fscore~algo*unit*ind[,thispred] ,data=ind) 
+  print(thispred)
+  print(summary(myfit)$adj.r.squared)
+}
+```
+
+
+
+# Corpus size effects with all children
+```{r showfx-lng, fig.height =10}
+
+plot(token_fscore~nutts,data=lng,type="n",xlab="N word tokens",ylab="Token F-score")
+
+for (thischild in levels(lng$child)){
+  subset(lng,child==thischild)->nai
+  
+  
+  for(thisscore in 0:10) lines(c(0,10^6),c(thisscore/10,thisscore/10),lty=3,col="gray")
+  for(thisalgo in 1:length(levels(nai$algo))) {
+    points(token_fscore~nutts,data=nai,subset=c(algo==levels(nai$algo)[thisalgo]),
+           pch=ifelse(nai$unit[nai$algo==levels(nai$algo)[thisalgo]]=="phone",20,8),
+           col=mycols[thisalgo],cex=ifelse(nai$unit[nai$algo==levels(nai$algo)[thisalgo]]=="phone",1.5,2) )
+  }
+  
+  nai$kind=paste(nai$thisconc,nai$unit,nai$algo)
+  for(i in 2:max(nai$iteration) ){
+    for(thiskind in levels(as.factor(nai$kind))){
+      origin=nai[nai$kind==thiskind & nai$iteration==(i-1),c("nutts","token_fscore")]
+      end=nai[nai$kind==thiskind & nai$iteration==(i),c("nutts","token_fscore")]
+      lines(c(origin$nutts,end$nutts),c(origin$token_fscore,end$token_fscore),lwd=2,
+            lty=1, #ifelse(strsplit(thiskind," ")[[1]][2]=="phone",1,3), #this line is not working
+            col=mycols[names(mycols)==strsplit(thiskind," ")[[1]][3]])
+    }
+  }
+  
+  #add legend
+  top=.53
+  mid=.50
+  bottom=.47
+  
+  polygon(c(20000,6000,6000,20000),c(top+.01,top+.01,bottom-.01,bottom-.01),border="white",bg="white",col="white")
+  
+  points(6500,mean(c(top,mid)),pch=20)
+  text(6510,mean(c(top,mid)),"phone",pos=4)
+  points(6500,mean(c(bottom,mid)),pch=8)
+  text(6510,mean(c(bottom,mid)),"syllable",pos=4)
+  
+  text(c(18000,12000,12000,12000,15000,18000,   15000,15000),
+       c(top     ,top,mid,bottom,     top,  mid,    mid,bottom),names(mycols),col=mycols)
+}
+```
