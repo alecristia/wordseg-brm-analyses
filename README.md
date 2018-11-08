@@ -50,7 +50,7 @@ can be used to check for reproducibility (see below for instructions).
 
 ## Dependencies
 
-Those analyses depends on [RStudio](https://www.rstudio.com/). You eed
+Those analyses depends on [RStudio](https://www.rstudio.com/). You need
 to install it.
 
 You also need the R packages `car` and `jsonlite` dependencies.
