@@ -1,7 +1,5 @@
 # Word Segmentation Analyses for the paper "WordSeg: Standardizing unsupervised word form segmentation from text"
 
-**to appear in Behavior Research Method**
-
 ## Put briefly
 
 You can find the additional analyses promised as supplementary
@@ -78,10 +76,11 @@ tutorial](https://libscie.github.io/rmarkdown-workshop/handout.html).
 2. Download `analyses.Rmd` (or `supmat.Rmd`) and put it at the same
    level as the two ensuing results folders. Create a folder called
    "derived" at the same level as the results folder and the
-   `analyses.Rmd` (or `supmat.Rmd`) file Launch RStudio by
-   double-clicking on `analyses.Rmd` (or `supmat.Rmd`) -- (or
-   otherwise ensure that your working directory points to the Rmd
-   location).  Click on the button *"knit"*.
+   `analyses.Rmd` (or `supmat.Rmd`) file
+
+3. Launch RStudio by double-clicking on `analyses.Rmd` (or
+   `supmat.Rmd`) -- (or otherwise ensure that your working directory
+   points to the Rmd location).  Click on the button *"knit"*.
 
 ## Instructions to check your word segmentation analyses against ours
 
