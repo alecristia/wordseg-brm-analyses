@@ -3,7 +3,7 @@
 ## Put briefly
 
 You can find the additional analyses promised as supplementary
-materials in supmat.pdf. We also provide a host of other files that
+materials in [supmat.pdf](https://github.com/alecristia/wordseg-brm-analyses/blob/master/supmat.pdf). We also provide a host of other files that
 can be used to check for reproducibility (see below for instructions).
 
 ## Full contents of this project
