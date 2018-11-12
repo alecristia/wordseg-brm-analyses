@@ -21,7 +21,7 @@ names(mycols)<-report_algos
 
 First we read in the performance results. Remember that there will be some warnings because boundary scores are sometimes undefined. (And that is as it should be.) Next we read the corpus characteristics descriptions. Finally, we do some cleaning and writing out.
 
-```{r compose-results,eval=RECALC}
+```{r compose-results,warning=FALSE , message=FALSE, eval=RECALC}
 library(jsonlite)
 results=dir(resfol)
 allres=NULL
@@ -155,7 +155,7 @@ In short, we observe clear effects of basic unit (+ for syllables, circles for p
 
 First, we compile the dataset, if needed.
 
-```{r compose-results-concat, eval=RECALC}
+```{r compose-results-concat, warning=FALSE , message=FALSE, eval=RECALC}
 
 ### NOTE!!! THIS CODE IS IDENTICAL TO compose-results CHUNK, SO IF YOU MAKE A CHANGE THERE, JUST COPY PASTE WHOLE CHUNK HERE AND 
 # 1. REPLACE THE NAME OF THE FOLDER resfol --> resfol_conc
